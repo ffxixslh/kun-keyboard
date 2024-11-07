@@ -1,5 +1,5 @@
 import { FC, useEffect, useRef, useState } from 'react'
-import { Track } from '../data/tracks'
+import { Track } from '../constants/tracks'
 
 interface AudioProps {
   track: Track

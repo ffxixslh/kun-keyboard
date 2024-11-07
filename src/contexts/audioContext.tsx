@@ -1,5 +1,5 @@
 import { Dispatch, FC, SetStateAction, createContext, useState } from 'react'
-import { tracks, Track } from '../data/tracks'
+import { tracks, Track } from '../constants/tracks'
 
 interface AudioPlayerContextType {
   currentTrack: Track

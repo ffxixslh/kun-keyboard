@@ -10,4 +10,5 @@ export default defineConfig({
   server: {
     port: 2500,
   },
+  assetsInclude: ['**/*.mp3', '**/*.wav'],
 })
