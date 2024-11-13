@@ -16,12 +16,10 @@ export const useKeyupPlaySound = () => {
   const handleInitAudioCtx = () => {
     const audioCtx = new AudioContext()
     audioCtxRef.current = audioCtx
-    setIsAudioCtxClose(false)
 
     const handleClearAudioCtx = () => {
       void audioCtx.close()
       audioCtxRef.current = null
-      setIsAudioCtxClose(true)
     }
 
     return handleClearAudioCtx
