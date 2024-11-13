@@ -9,11 +9,12 @@ import { KEYMAP } from '../constants/keymap'
 export const useKeyupPlaySound = () => {
   const [keyupInputs, setKeyupInputs] = useState<string[]>([])
   const [isPlaying, setIsPlaying] = useState(false)
-  const [isAudioCtxClose, setIsAudioCtxClose] = useState(true)
   const audioCtxRef = useRef<AudioContext | null>(null)
   const audioBuffersRef = useRef<Map<string, AudioBuffer>>(new Map())
 
-  const handleInitAudioCtx = () => {
+  const handleInitAudioCtx = useCallback(() => {
+    if (audioCtxRef.current) return
+
     const audioCtx = new AudioContext()
     audioCtxRef.current = audioCtx
 
@@ -23,7 +24,7 @@ export const useKeyupPlaySound = () => {
     }
 
     return handleClearAudioCtx
-  }
+  }, [])
 
   const handleLoad = async (url: string) => {
     if (audioBuffersRef.current.has(url)) return
@@ -58,7 +59,7 @@ export const useKeyupPlaySound = () => {
 
   const handleKeyup = useCallback(async (e: KeyboardEvent) => {
     const audioCtx = audioCtxRef.current
-    if (!audioCtx) throw new Error('No audio context')
+    if (!audioCtx) handleInitAudioCtx()
 
     if (
       e.key.length !== 1
@@ -73,58 +74,65 @@ export const useKeyupPlaySound = () => {
 
     setKeyupInputs(prev => [...prev, e.key])
     setIsPlaying(true)
-  }, [])
+  }, [handleInitAudioCtx])
 
-  const handleControl = useCallback(async (e: KeyboardEvent) => {
-    if (e.key !== ' ') return
+  const handleControl = useCallback(
+    async (e: KeyboardEvent | React.MouseEvent) => {
+      if (e instanceof KeyboardEvent && e.key !== ' ') return
+      if (e instanceof MouseEvent && e.type !== 'click') return
 
-    const audioCtx = audioCtxRef.current
-    if (!audioCtx) throw new Error('No audio context')
+      const audioCtx = audioCtxRef.current
+      if (!audioCtx) throw new Error('No audio context')
 
-    if (isPlaying) {
-      await audioCtx.suspend()
-      setIsPlaying(false)
+      if (audioCtx.state === 'closed') return
+
+      if (isPlaying && audioCtx.state === 'running') {
+        await audioCtx.suspend()
+        setIsPlaying(false)
+
+        return
+      }
+
+      if (!isPlaying && audioCtx.state === 'suspended') {
+        await audioCtx.resume()
+        setIsPlaying(true)
+
+        return
+      }
 
       return
-    }
-    else {
-      await audioCtx.resume()
-      setIsPlaying(true)
-
-      return
-    }
-  }, [isPlaying])
+    },
+    [isPlaying])
 
   const handleReset = () => {
-    setIsAudioCtxClose(true)
+    void audioCtxRef.current?.close()
+    audioCtxRef.current = null
     setKeyupInputs([])
     setIsPlaying(false)
   }
 
   // initialize audioContext
   useEffect(() => {
-    if (!isAudioCtxClose && audioCtxRef.current) return
     const handleClearAudioCtx = handleInitAudioCtx()
 
     return handleClearAudioCtx
-  }, [isAudioCtxClose])
+  }, [handleInitAudioCtx])
 
   // add keydown event to window
   useEffect(() => {
     window.addEventListener('keyup', handleKeyup)
-    window.addEventListener('keydown', handleControl)
+    window.addEventListener('keyup', handleControl)
 
     return () => {
       window.removeEventListener('keyup', handleKeyup)
-      window.removeEventListener('keydown', handleControl)
+      window.removeEventListener('keyup', handleControl)
     }
   }, [handleKeyup, handleControl])
 
   return {
     isPlaying,
-    setIsPlaying,
     keyupInputs,
-    setKeyupInputs,
+    handleControl,
     handleReset,
   }
 }
