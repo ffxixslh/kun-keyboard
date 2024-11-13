@@ -9,8 +9,23 @@ import { KEYMAP } from '../constants/keymap'
 export const useKeyupPlaySound = () => {
   const [keyupInputs, setKeyupInputs] = useState<string[]>([])
   const [isPlaying, setIsPlaying] = useState(false)
+  const [isAudioCtxClose, setIsAudioCtxClose] = useState(true)
   const audioCtxRef = useRef<AudioContext | null>(null)
   const audioBuffersRef = useRef<Map<string, AudioBuffer>>(new Map())
+
+  const handleInitAudioCtx = () => {
+    const audioCtx = new AudioContext()
+    audioCtxRef.current = audioCtx
+    setIsAudioCtxClose(false)
+
+    const handleClearAudioCtx = () => {
+      void audioCtx.close()
+      audioCtxRef.current = null
+      setIsAudioCtxClose(true)
+    }
+
+    return handleClearAudioCtx
+  }
 
   const handleLoad = async (url: string) => {
     if (audioBuffersRef.current.has(url)) return
@@ -37,6 +52,7 @@ export const useKeyupPlaySound = () => {
     source.buffer = audioBuffer
     source.onended = () => {
       source.disconnect()
+      setIsPlaying(false)
     }
     source.connect(audioCtx.destination)
     source.start(0)
@@ -54,10 +70,11 @@ export const useKeyupPlaySound = () => {
     const audioUrl = KEYMAP[e.key]
     if (!audioUrl) return
 
-    setKeyupInputs(prev => [...prev, e.key])
-
     await handleLoad(audioUrl)
     await handlePlay(audioUrl)
+
+    setKeyupInputs(prev => [...prev, e.key])
+    setIsPlaying(true)
   }, [])
 
   const handleControl = useCallback(async (e: KeyboardEvent) => {
@@ -80,13 +97,19 @@ export const useKeyupPlaySound = () => {
     }
   }, [isPlaying])
 
+  const handleReset = () => {
+    setIsAudioCtxClose(true)
+    setKeyupInputs([])
+    setIsPlaying(false)
+  }
+
   // initialize audioContext
   useEffect(() => {
-    const audioCtx = new AudioContext()
-    audioCtxRef.current = audioCtx
+    if (!isAudioCtxClose && audioCtxRef.current) return
+    const handleClearAudioCtx = handleInitAudioCtx()
 
-    return () => void audioCtx.close()
-  }, [])
+    return handleClearAudioCtx
+  }, [isAudioCtxClose])
 
   // add keydown event to window
   useEffect(() => {
@@ -104,5 +127,6 @@ export const useKeyupPlaySound = () => {
     setIsPlaying,
     keyupInputs,
     setKeyupInputs,
+    handleReset,
   }
 }

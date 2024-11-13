@@ -6,15 +6,15 @@ function App() {
     isPlaying,
     setIsPlaying,
     keyupInputs,
-    setKeyupInputs,
+    handleReset,
   } = useKeyupPlaySound()
 
   return (
-    <div className="grid pic container h-screen bg-grlxs">
+    <div className="grid pic w-full h-screen bg-grlxs bg-cover text-black">
       <div>
         <button
           className="ring-1 ring-gray-600"
-          onClick={() => setKeyupInputs([])}
+          onClick={handleReset}
         >
           Reset
         </button>
