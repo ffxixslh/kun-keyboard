@@ -4,7 +4,9 @@ import { useKeyupPlaySound } from './hooks/useKeyupPlaySound'
 function App() {
   const {
     isPlaying,
+    keyupInputs,
     handleControl,
+    handleInput,
     handleReset,
   } = useKeyupPlaySound()
 
@@ -33,6 +35,8 @@ function App() {
         </button>
         <input
           className="bg-white w-24"
+          value={keyupInputs.join('')}
+          onChange={handleInput}
         />
       </div>
     </div>

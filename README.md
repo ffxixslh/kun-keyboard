@@ -1,50 +1,132 @@
-# React + TypeScript + Vite
+# Kun Keyboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## WIP
 
-Currently, two official plugins are available:
+1. 增加流式播放功能，不需要等整首歌下载完才能播放
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+```tsx
+interface AudioPlayerProps {
+  audioUrl: string;
+}
 
-## Expanding the ESLint configuration
+const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl }) => {
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const bufferQueue = useRef<ArrayBuffer[]>([]);
+  const processedBytesRef = useRef<number>(0);
 
-If you are developing a production application, we recommend updating the configuration to enable type aware lint rules:
+  useEffect(() => {
+    // 创建 AudioContext
+    audioContextRef.current = new AudioContext();
 
-- Configure the top-level `parserOptions` property like this:
+    return () => {
+      audioContextRef.current?.close();
+    };
+  }, []);
 
-```js
-export default tseslint.config({
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ["./tsconfig.node.json", "./tsconfig.app.json"],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-});
-```
+  const startStreaming = async () => {
+    try {
+      const response = await fetch(audioUrl);
+      const reader = response.body?.getReader();
+      const contentLength = Number(response.headers.get('content-length'));
 
-- Replace `tseslint.configs.recommended` to `tseslint.configs.recommendedTypeChecked` or `tseslint.configs.strictTypeChecked`
-- Optionally add `...tseslint.configs.stylisticTypeChecked`
-- Install [eslint-plugin-react](https://github.com/jsx-eslint/eslint-plugin-react) and update the config:
+      if (!reader) {
+        throw new Error('Reader not supported');
+      }
 
-```js
-// eslint.config.js
-import react from "eslint-plugin-react";
+      // 开始读取流
+      while (true) {
+        const { done, value } = await reader.read();
 
-export default tseslint.config({
-  // Set the react version
-  settings: { react: { version: "18.3" } },
-  plugins: {
-    // Add the react plugin
-    react,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended rules
-    ...react.configs.recommended.rules,
-    ...react.configs["jsx-runtime"].rules,
-  },
-});
+        if (done) {
+          console.log('Stream complete');
+          break;
+        }
+
+        // 将新的数据块添加到队列
+        const arrayBuffer = value.buffer;
+        bufferQueue.current.push(arrayBuffer);
+
+        // 更新进度
+        processedBytesRef.current += arrayBuffer.byteLength;
+        setProgress((processedBytesRef.current / contentLength) * 100);
+
+        // 如果是第一块数据，立即开始播放
+        if (bufferQueue.current.length === 1) {
+          processNextBuffer();
+        }
+      }
+    } catch (error) {
+      console.error('Streaming failed:', error);
+    }
+  };
+
+  const processNextBuffer = async () => {
+    if (!audioContextRef.current || bufferQueue.current.length === 0) {
+      return;
+    }
+
+    try {
+      const arrayBuffer = bufferQueue.current.shift();
+      if (!arrayBuffer) return;
+
+      // 解码音频数据
+      const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
+
+      // 创建音频源
+      const sourceNode = audioContextRef.current.createBufferSource();
+      sourceNode.buffer = audioBuffer;
+      sourceNode.connect(audioContextRef.current.destination);
+
+      // 当前片段播放完成后，处理下一个片段
+      sourceNode.onended = () => {
+        processNextBuffer();
+      };
+
+      // 开始播放
+      sourceNode.start();
+      sourceNodeRef.current = sourceNode;
+      setIsPlaying(true);
+    } catch (error) {
+      console.error('Error processing buffer:', error);
+    }
+  };
+
+  const togglePlayPause = () => {
+    if (!audioContextRef.current) return;
+
+    if (audioContextRef.current.state === 'suspended') {
+      audioContextRef.current.resume();
+      setIsPlaying(true);
+    } else if (audioContextRef.current.state === 'running') {
+      audioContextRef.current.suspend();
+      setIsPlaying(false);
+    }
+  };
+
+  const handlePlay = () => {
+    if (!audioContextRef.current) return;
+
+    if (bufferQueue.current.length === 0) {
+      // 首次播放，开始流式加载
+      startStreaming();
+    } else {
+      // 恢复播放
+      togglePlayPause();
+    }
+  };
+
+  return (
+    <div>
+      <button onClick={handlePlay}>
+        {isPlaying ? 'Pause' : 'Play'}
+      </button>
+      <div>
+        Progress: {progress.toFixed(2)}%
+      </div>
+    </div>
+  );
+};
 ```
