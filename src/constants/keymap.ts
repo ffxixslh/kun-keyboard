@@ -11,7 +11,7 @@ import qmzzrmdjh from '/src/assets/audios/qmzzrmdjh.mp3'
 import rap from '/src/assets/audios/rap.mp3'
 import tp from '/src/assets/audios/tp.wav'
 import ctrl from '/src/assets/audios/ctrl.wav'
-import ji_ni_ta_mei from '/src/assets/musics/鸡你太美.mp3'
+import ji_ni_tai_mei from '/src/assets/musics/ji_ni_tai_mei.mp3'
 
 export const KEYMAP: Record<string, string> = {
   a: ay,
@@ -27,5 +27,5 @@ export const KEYMAP: Record<string, string> = {
   r: rap,
   t: tp,
   Control: ctrl,
-  ['1']: ji_ni_ta_mei,
+  ['1']: ji_ni_tai_mei,
 }
