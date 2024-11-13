@@ -58,14 +58,13 @@ export const useKeyupPlaySound = () => {
     source.start(0)
   }
 
-  const handlePerform = useCallback(async (key: string) => {
+  const handlePerform = useCallback(async (key: string, value?: string) => {
     const audioCtx = audioCtxRef.current
     if (!audioCtx) handleInitAudioCtx()
-
     const audioUrl = KEYMAP[key]
     if (!audioUrl) return
 
-    setKeyupInputs(prev => [...prev, key])
+    setKeyupInputs(prev => value?value.split(""):[...prev, key])
     setIsPlaying(true)
 
     await handleLoad(audioUrl)
@@ -74,7 +73,6 @@ export const useKeyupPlaySound = () => {
 
   const handleKeyup = useCallback(async (e: KeyboardEvent) => {
     if (e.target instanceof HTMLInputElement) return
-
     const key = e.key
     if (
       key.length !== 1
@@ -86,9 +84,9 @@ export const useKeyupPlaySound = () => {
 
   const handleInput = useCallback(async (e: ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
+    if(!value) return setKeyupInputs([]);
     const key = value.slice(-1)
-
-    await handlePerform(key)
+    await handlePerform(key, value)
   }, [handlePerform])
 
   const handleControl = useCallback(
