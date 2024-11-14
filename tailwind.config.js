@@ -5,6 +5,7 @@ export default {
     extend: {
       backgroundImage: {
         'grlxs': "url('/src/assets/images/bg.jpg')",
+        'chick': "url('/src/assets/images/chick.png')",
       }
     },
   },
