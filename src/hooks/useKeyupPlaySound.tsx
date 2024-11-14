@@ -1,14 +1,13 @@
 import {
-  ChangeEvent,
   useCallback,
   useEffect,
   useRef,
   useState,
 } from 'react'
-import { KEYMAP } from '../constants/keymap'
+import { KEY_MUSIC_MAP } from '../constants/keymap'
+import { getKeyboardEventKey } from '../constants/keyboard'
 
 export const useKeyupPlaySound = () => {
-  const [keyupInputs, setKeyupInputs] = useState<string[]>([])
   const [isPlaying, setIsPlaying] = useState(false)
   const audioCtxRef = useRef<AudioContext | null>(null)
   const audioBuffersRef = useRef<Map<string, AudioBuffer>>(new Map())
@@ -62,37 +61,17 @@ export const useKeyupPlaySound = () => {
     const audioCtx = audioCtxRef.current
     if (!audioCtx) handleInitAudioCtx()
 
-    const audioUrl = KEYMAP[key]
+    const audioUrl = KEY_MUSIC_MAP[key]
     if (!audioUrl) return
 
-    setKeyupInputs(prev => [...prev, key])
     setIsPlaying(true)
 
     await handleLoad(audioUrl)
     await handleStart(audioUrl)
   }, [handleInitAudioCtx])
 
-  const handleKeyup = useCallback(async (e: KeyboardEvent) => {
-    if (e.target instanceof HTMLInputElement) return
-
-    const key = e.key
-    if (
-      key.length !== 1
-      && !(['Control'].includes(key))
-    ) return
-
-    await handlePerform(key)
-  }, [handlePerform])
-
-  const handleInput = useCallback(async (e: ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value
-    const key = value.slice(-1)
-
-    await handlePerform(key)
-  }, [handlePerform])
-
   const handleControl = useCallback(
-    async (e: KeyboardEvent | React.MouseEvent) => {
+    async (e?: KeyboardEvent | React.MouseEvent) => {
       if (e instanceof KeyboardEvent && e.key !== ' ') return
       if (e instanceof MouseEvent && e.type !== 'click') return
 
@@ -119,10 +98,35 @@ export const useKeyupPlaySound = () => {
     },
     [isPlaying])
 
+  const handleKeyup = useCallback(async (e: KeyboardEvent) => {
+    if (e.target instanceof HTMLInputElement) return
+
+    const key = e.key
+    if (
+      key.length !== 1
+      && !(['Control'].includes(key))
+    ) return
+
+    await handlePerform(key)
+  }, [handlePerform])
+
+  const handleClick = useCallback(async (
+    value: string,
+  ) => {
+    const key = getKeyboardEventKey(value)
+
+    if (key === ' ') {
+      await handleControl()
+
+      return
+    }
+
+    await handlePerform(key)
+  }, [handleControl, handlePerform])
+
   const handleReset = () => {
     void audioCtxRef.current?.close()
     audioCtxRef.current = null
-    setKeyupInputs([])
     setIsPlaying(false)
   }
 
@@ -146,9 +150,8 @@ export const useKeyupPlaySound = () => {
 
   return {
     isPlaying,
-    keyupInputs,
+    handleClick,
     handleControl,
-    handleInput,
     handleReset,
   }
 }

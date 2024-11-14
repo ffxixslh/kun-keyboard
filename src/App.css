@@ -1,0 +1,23 @@
+.simple-keyboard.hg-layout-default .hg-button.hg-orange {
+  background: rgb(255, 120, 10);
+  color: rgb(55, 20, 10);
+}
+
+.simple-keyboard.hg-layout-default .hg-button.hg-purple {
+  background: rgb(144, 148, 235);
+  color: rgb(55, 20, 10);
+}
+
+.simple-keyboard.hg-layout-default .hg-button.grlxs span::after {
+  content: url("/src/assets/images/chick40h.png");
+}
+
+.simple-keyboard.hg-layout-default .hg-button.hg-cyan {
+  background: rgb(153, 211, 233);
+  color: rgb(55, 20, 10);
+}
+
+.simple-keyboard.hg-layout-default .hg-button.hg-white {
+  background: rgb(227, 230, 245);
+  color: rgb(55, 20, 10);
+}
