@@ -2,7 +2,11 @@ import KeyboardReact from 'react-simple-keyboard'
 import { useKeyupPlaySound } from './hooks/useKeyupPlaySound'
 import './App.css'
 import 'react-simple-keyboard/build/css/index.css'
-import { KEYBOARD_DISPLAY, KEYBOARD_LAYOUT } from './constants/keyboard'
+import {
+  KEYBOARD_DISPLAY,
+  KEYBOARD_LAYOUT,
+  KEYBOARD_BUTTON_THEME,
+} from './constants/keyboard'
 
 function App() {
   const {
@@ -33,16 +37,7 @@ function App() {
       <div className="flex flex-col gap-2 items-center">
         <div className="container text-black xl:px-20">
           <KeyboardReact
-            buttonTheme={[
-              { class: 'grlxs', buttons: 'G g' },
-              { class: 'hg-orange', buttons: 'L l' },
-              { class: 'hg-purple', buttons: '{space}' },
-              { class: 'hg-cyan', buttons: '{ctrl}' },
-              {
-                class: 'hg-white',
-                buttons: 'A C G H J M N Q T R a c g h j m n q r t',
-              },
-            ]}
+            buttonTheme={KEYBOARD_BUTTON_THEME}
             layout={KEYBOARD_LAYOUT}
             display={KEYBOARD_DISPLAY}
             onKeyPress={handleClick}

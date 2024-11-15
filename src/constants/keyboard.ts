@@ -36,6 +36,17 @@ export const KEYBOARD_LAYOUT = {
   ],
 }
 
+export const KEYBOARD_BUTTON_THEME = [
+  { class: 'grlxs', buttons: 'G g' },
+  { class: 'hg-orange', buttons: 'L l' },
+  { class: 'hg-purple', buttons: '{space}' },
+  { class: 'hg-cyan', buttons: '{ctrl}' },
+  {
+    class: 'hg-white',
+    buttons: 'A C G H J M N Q R T a c g h j m n q r t',
+  },
+]
+
 export const KEYBOARD_KEYMAP: Record<string, string> = {
   // 特殊功能键
   '{ctrl}': 'Control',
