@@ -4,7 +4,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { KEY_MUSIC_MAP } from '../constants/keymap'
+import { getKeyMusic } from '../constants/keymap'
 import { getKeyboardEventKey } from '../constants/keyboard'
 
 export const useKeyupPlaySound = () => {
@@ -61,7 +61,7 @@ export const useKeyupPlaySound = () => {
     const audioCtx = audioCtxRef.current
     if (!audioCtx) handleInitAudioCtx()
 
-    const audioUrl = KEY_MUSIC_MAP[key]
+    const audioUrl = getKeyMusic(key)
     if (!audioUrl) return
 
     setIsPlaying(true)

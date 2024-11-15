@@ -27,3 +27,5 @@ export const KEY_MUSIC_MAP: Record<string, string> = {
   Control: ctrl,
   ['1']: ji_ni_tai_mei,
 }
+
+export const getKeyMusic = (s: string) => KEY_MUSIC_MAP[s]
