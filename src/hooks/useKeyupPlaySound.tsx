@@ -10,9 +10,13 @@ import { getKeyboardEventKey } from '../constants/keyboard'
 export const useKeyupPlaySound = () => {
   const [isPlaying, setIsPlaying] = useState(false)
   const audioCtxRef = useRef<AudioContext | null>(null)
-  const audioBuffersRef = useRef<Map<string, AudioBuffer>>(new Map())
+  const slicedChunksMapRef = useRef<Map<string, {
+    chunks: AudioBuffer[]
+    index: number
+  }>>(new Map())
+  const cachedBufferMapRef = useRef<Map<string, AudioBuffer>>(new Map())
 
-  const handleInitAudioCtx = useCallback(() => {
+  const handleInitAudioContext = useCallback(() => {
     if (audioCtxRef.current) return
 
     const audioCtx = new AudioContext()
@@ -26,49 +30,126 @@ export const useKeyupPlaySound = () => {
     return handleClearAudioCtx
   }, [])
 
-  const handleLoad = async (url: string) => {
-    if (audioBuffersRef.current.has(url)) return
+  const handlePlayNextBuffer = useCallback(async (
+    url: string,
+    index = 0,
+  ) => {
+    const audioCtx = audioCtxRef.current
+    if (!audioCtx) throw new Error('Start: No audio context (never)')
 
+    try {
+      const slicedChunks = slicedChunksMapRef.current.get(url)?.chunks
+      if (slicedChunks && slicedChunks.length - 1 < index) return
+      const indexedChunk = slicedChunksMapRef.current
+        .get(url)?.chunks[index]
+
+      const audioBuffer = indexedChunk
+      if (!audioBuffer) throw new Error('Start: No audio buffer')
+
+      await audioCtx.resume()
+
+      const source = audioCtx.createBufferSource()
+      source.buffer = audioBuffer
+      source.connect(audioCtx.destination)
+      source.onended = () => {
+        source.disconnect()
+
+        const nextIndex = index + 1
+        void handlePlayNextBuffer(url, nextIndex)
+
+        if (slicedChunks && nextIndex > slicedChunks?.length - 1) {
+          setIsPlaying(false)
+        }
+      }
+      source.start(0)
+
+      setIsPlaying(true)
+    }
+    catch (err) {
+      console.error(err)
+    }
+  }, [])
+
+  const handlePlayCachedBuffer = useCallback((url: string) => {
+    const audioCtx = audioCtxRef.current
+    if (!audioCtx) throw new Error('Start: No audio context')
+
+    const arrayBuffer = cachedBufferMapRef.current.get(url)
+    if (!arrayBuffer) throw new Error('No audio buffer')
+
+    const sourceNode = audioCtx.createBufferSource()
+    sourceNode.buffer = arrayBuffer
+    sourceNode.connect(audioCtx.destination)
+    sourceNode.start(0)
+  }, [])
+
+  const handleLoadBuffer = useCallback(async (url: string) => {
     const audioCtx = audioCtxRef.current
     if (!audioCtx) throw new Error('No audio context')
+
+    const cachedBuffer = cachedBufferMapRef.current.has(url)
+    if (cachedBuffer) {
+      void handlePlayCachedBuffer(url)
+
+      return
+    }
 
     const audioRes = await fetch(url)
-    const arrayBuffer = await audioRes.arrayBuffer()
-    const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer)
-    audioBuffersRef.current.set(url, audioBuffer)
-  }
 
-  const handleStart = async (url: string) => {
-    const audioCtx = audioCtxRef.current
-    if (!audioCtx) throw new Error('No audio context')
+    // start slicing buffer
+    const reader = audioRes.body?.getReader()
+    if (!reader) throw new Error('No reader')
 
-    const audioBuffer = audioBuffersRef.current.get(url)
-    if (!audioBuffer) throw new Error('No audio buffer')
+    const fileLength = Number(audioRes.headers.get('content-length'))
+    if (!fileLength) throw new Error('No content length')
 
-    await audioCtx.resume()
+    const mergedChunk = new Uint8Array(fileLength)
+    slicedChunksMapRef.current.set(url, {
+      index: 0,
+      chunks: [],
+    })
 
-    const source = audioCtx.createBufferSource()
-    source.buffer = audioBuffer
-    source.onended = () => {
-      source.disconnect()
-      setIsPlaying(false)
+    let offset = 0
+    let index = 0
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      const chunk = new Uint8Array(value.buffer)
+      mergedChunk.set(chunk, offset)
+      offset += value.byteLength
+
+      const slicedAudioBuffer = await audioCtx
+        .decodeAudioData(chunk.buffer)
+
+      slicedChunksMapRef.current.set(url, {
+        chunks: [
+          ...(slicedChunksMapRef.current.get(url)?.chunks) ?? [],
+          slicedAudioBuffer,
+        ],
+        index,
+      })
+
+      if (slicedChunksMapRef.current.get(url)?.chunks.length === 1) {
+        void await handlePlayNextBuffer(url, index)
+      }
+
+      index += 1
     }
-    source.connect(audioCtx.destination)
-    source.start(0)
-  }
+    const mergedAudioBuffer = await audioCtx
+      .decodeAudioData(mergedChunk.buffer)
+    cachedBufferMapRef.current.set(url, mergedAudioBuffer)
+  }, [handlePlayNextBuffer, handlePlayCachedBuffer])
 
-  const handlePerform = useCallback(async (key: string) => {
+  const handleProcessBuffer = useCallback(async (key: string) => {
     const audioCtx = audioCtxRef.current
-    if (!audioCtx) handleInitAudioCtx()
+    if (!audioCtx) throw new Error('Perform: No audio context')
 
     const audioUrl = getKeyMusic(key)
     if (!audioUrl) return
 
-    setIsPlaying(true)
-
-    await handleLoad(audioUrl)
-    await handleStart(audioUrl)
-  }, [handleInitAudioCtx])
+    await handleLoadBuffer(audioUrl)
+  }, [handleLoadBuffer])
 
   const handleControl = useCallback(
     async (e?: KeyboardEvent | React.MouseEvent) => {
@@ -76,7 +157,7 @@ export const useKeyupPlaySound = () => {
       if (e instanceof MouseEvent && e.type !== 'click') return
 
       const audioCtx = audioCtxRef.current
-      if (!audioCtx) throw new Error('No audio context')
+      if (!audioCtx) throw new Error('Control: No audio context')
 
       if (audioCtx.state === 'closed') return
 
@@ -99,43 +180,47 @@ export const useKeyupPlaySound = () => {
     [isPlaying])
 
   const handleKeyup = useCallback(async (e: KeyboardEvent) => {
-    if (e.target instanceof HTMLInputElement) return
-
     const key = e.key
     if (
       key.length !== 1
       && !(['Control'].includes(key))
     ) return
-
-    await handlePerform(key)
-  }, [handlePerform])
-
-  const handleClick = useCallback(async (
-    value: string,
-  ) => {
-    const key = getKeyboardEventKey(value)
-
     if (key === ' ') {
       await handleControl()
 
       return
     }
 
-    await handlePerform(key)
-  }, [handleControl, handlePerform])
+    await handleProcessBuffer(key)
+  }, [handleControl, handleProcessBuffer])
+
+  const handleClick = useCallback(async (
+    value: string,
+  ) => {
+    const key = getKeyboardEventKey(value)
+    if (key === ' ') {
+      await handleControl()
+
+      return
+    }
+
+    await handleProcessBuffer(key)
+  }, [handleControl, handleProcessBuffer])
 
   const handleReset = () => {
     void audioCtxRef.current?.close()
     audioCtxRef.current = null
     setIsPlaying(false)
+
+    handleInitAudioContext()
   }
 
   // initialize audioContext
   useEffect(() => {
-    const handleClearAudioCtx = handleInitAudioCtx()
+    const handleClearAudioCtx = handleInitAudioContext()
 
     return handleClearAudioCtx
-  }, [handleInitAudioCtx])
+  }, [handleInitAudioContext])
 
   // add keydown event to window
   useEffect(() => {
