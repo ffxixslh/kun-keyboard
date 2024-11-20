@@ -17,7 +17,7 @@ function App() {
   return (
     <div className="grid pic w-full h-screen bg-grlxs bg-cover relative">
       <div
-        className="absolute top-0 right-2 bg-chick"
+        className="absolute top-0 right-2"
       >
         <a
           className="underline text-blue-600 "
