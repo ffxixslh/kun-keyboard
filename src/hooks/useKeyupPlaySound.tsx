@@ -16,199 +16,209 @@ export const useKeyupPlaySound = () => {
   }>>(new Map())
   const cachedBufferMapRef = useRef<Map<string, AudioBuffer>>(new Map())
 
-  const handleInitAudioContext = useCallback(() => {
-    if (audioCtxRef.current) return
+  const handleInitAudioContext = useCallback(
+    function handleInitAudioContext() {
+      audioCtxRef.current = new AudioContext()
 
-    const audioCtx = new AudioContext()
-    audioCtxRef.current = audioCtx
-
-    const handleClearAudioCtx = () => {
-      void audioCtx.close()
-      audioCtxRef.current = null
-    }
-
-    return handleClearAudioCtx
-  }, [])
-
-  const handlePlayNextBuffer = useCallback(async (
-    url: string,
-    index = 0,
-  ) => {
-    const audioCtx = audioCtxRef.current
-    if (!audioCtx) throw new Error('Start: No audio context (never)')
-
-    try {
-      const slicedChunks = slicedChunksMapRef.current.get(url)?.chunks
-      if (slicedChunks && slicedChunks.length - 1 < index) return
-      const indexedChunk = slicedChunksMapRef.current
-        .get(url)?.chunks[index]
-
-      const audioBuffer = indexedChunk
-      if (!audioBuffer) throw new Error('Start: No audio buffer')
-
-      await audioCtx.resume()
-
-      const source = audioCtx.createBufferSource()
-      source.buffer = audioBuffer
-      source.connect(audioCtx.destination)
-      source.onended = () => {
-        source.disconnect()
-
-        const nextIndex = index + 1
-        void handlePlayNextBuffer(url, nextIndex)
-
-        if (slicedChunks && nextIndex > slicedChunks?.length - 1) {
-          setIsPlaying(false)
-        }
+      const handleClearAudioCtx = () => {
+        audioCtxRef.current = null
+        new AudioContext().close()
+          .catch(e => console.error(e))
       }
-      source.start(0)
 
-      setIsPlaying(true)
-    }
-    catch (err) {
-      console.error(err)
-    }
-  }, [])
+      return handleClearAudioCtx
+    }, [])
 
-  const handlePlayCachedBuffer = useCallback((url: string) => {
-    const audioCtx = audioCtxRef.current
-    if (!audioCtx) throw new Error('Start: No audio context')
+  const handlePlayNextBuffer = useCallback(
+    async function handlePlayNextBuffer(
+      url: string,
+      index = 0,
+    ) {
+      if (!audioCtxRef.current) throw new Error('Start: No audio context')
 
-    const arrayBuffer = cachedBufferMapRef.current.get(url)
-    if (!arrayBuffer) throw new Error('No audio buffer')
+      try {
+        const slicedChunks = slicedChunksMapRef.current.get(url)?.chunks
+        if (slicedChunks && slicedChunks.length - 1 < index) return
+        const indexedChunk = slicedChunksMapRef.current
+          .get(url)?.chunks[index]
 
-    const sourceNode = audioCtx.createBufferSource()
-    sourceNode.buffer = arrayBuffer
-    sourceNode.connect(audioCtx.destination)
-    sourceNode.start(0)
-  }, [])
+        const audioBuffer = indexedChunk
+        if (!audioBuffer) throw new Error('Start: No audio buffer')
 
-  const handleLoadBuffer = useCallback(async (url: string) => {
-    const audioCtx = audioCtxRef.current
-    if (!audioCtx) throw new Error('No audio context')
+        await audioCtxRef.current.resume()
 
-    const cachedBuffer = cachedBufferMapRef.current.has(url)
-    if (cachedBuffer) {
-      void handlePlayCachedBuffer(url)
+        const source = audioCtxRef.current.createBufferSource()
+        source.buffer = audioBuffer
+        source.connect(audioCtxRef.current.destination)
+        source.onended = () => {
+          source.disconnect()
 
-      return
-    }
+          const nextIndex = index + 1
+          void handlePlayNextBuffer(url, nextIndex)
 
-    const audioRes = await fetch(url)
+          if (slicedChunks && nextIndex > slicedChunks?.length - 1) {
+            setIsPlaying(false)
+          }
+        }
+        source.start(0)
 
-    // start slicing buffer
-    const reader = audioRes.body?.getReader()
-    if (!reader) throw new Error('No reader')
+        setIsPlaying(true)
+      }
+      catch (err) {
+        console.error(err)
+      }
+    }, [])
 
-    const fileLength = Number(audioRes.headers.get('content-length'))
-    if (!fileLength) throw new Error('No content length')
+  const handlePlayCachedBuffer = useCallback(
+    function handlePlayCachedBuffer(url: string) {
+      const audioCtx = audioCtxRef.current
+      if (!audioCtx) throw new Error('Start: No audio context')
 
-    const mergedChunk = new Uint8Array(fileLength)
-    slicedChunksMapRef.current.set(url, {
-      index: 0,
-      chunks: [],
-    })
+      const arrayBuffer = cachedBufferMapRef.current.get(url)
+      if (!arrayBuffer) throw new Error('No audio buffer')
 
-    let offset = 0
-    let index = 0
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
+      const sourceNode = audioCtx.createBufferSource()
+      sourceNode.buffer = arrayBuffer
+      sourceNode.connect(audioCtx.destination)
+      sourceNode.start(0)
+    }, [])
 
-      const chunk = new Uint8Array(value.buffer)
-      mergedChunk.set(chunk, offset)
-      offset += value.byteLength
+  const handleLoadBuffer = useCallback(
+    async function handleLoadBuffer(url: string) {
+      if (!audioCtxRef.current) throw new Error('No audio context')
 
-      const slicedAudioBuffer = await audioCtx
-        .decodeAudioData(chunk.buffer)
+      const cachedBuffer = cachedBufferMapRef.current.has(url)
+      if (cachedBuffer) {
+        void handlePlayCachedBuffer(url)
 
+        return
+      }
+
+      const audioRes = await fetch(url)
+
+      // start slicing buffer
+      const reader = audioRes.body?.getReader()
+      if (!reader) throw new Error('No reader')
+
+      const fileLength = Number(audioRes.headers.get('content-length'))
+      if (!fileLength) throw new Error('No content length')
+
+      const mergedChunk = new Uint8Array(fileLength)
       slicedChunksMapRef.current.set(url, {
-        chunks: [
-          ...(slicedChunksMapRef.current.get(url)?.chunks) ?? [],
-          slicedAudioBuffer,
-        ],
-        index,
+        index: 0,
+        chunks: [],
       })
 
-      if (slicedChunksMapRef.current.get(url)?.chunks.length === 1) {
-        void await handlePlayNextBuffer(url, index)
+      let offset = 0
+      let index = 0
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        const chunk = new Uint8Array(value.buffer)
+        mergedChunk.set(chunk, offset)
+        offset += value.byteLength
+
+        const slicedAudioBuffer = await audioCtxRef.current
+          .decodeAudioData(chunk.buffer)
+
+        slicedChunksMapRef.current.set(url, {
+          chunks: [
+            ...(slicedChunksMapRef.current.get(url)?.chunks) ?? [],
+            slicedAudioBuffer,
+          ],
+          index,
+        })
+
+        if (slicedChunksMapRef.current.get(url)?.chunks.length === 1) {
+          void await handlePlayNextBuffer(url, index)
+        }
+
+        index += 1
       }
+      const mergedAudioBuffer = await audioCtxRef.current
+        .decodeAudioData(mergedChunk.buffer)
+      cachedBufferMapRef.current.set(url, mergedAudioBuffer)
+    }, [handlePlayNextBuffer, handlePlayCachedBuffer])
 
-      index += 1
-    }
-    const mergedAudioBuffer = await audioCtx
-      .decodeAudioData(mergedChunk.buffer)
-    cachedBufferMapRef.current.set(url, mergedAudioBuffer)
-  }, [handlePlayNextBuffer, handlePlayCachedBuffer])
+  const handleProcessBuffer = useCallback(
+    async function handleProcessBuffer(key: string) {
+      if (!audioCtxRef.current) throw new Error('Perform: No audio context')
 
-  const handleProcessBuffer = useCallback(async (key: string) => {
-    const audioCtx = audioCtxRef.current
-    if (!audioCtx) throw new Error('Perform: No audio context')
+      const audioUrl = getKeyMusic(key)
+      if (!audioUrl) return
 
-    const audioUrl = getKeyMusic(key)
-    if (!audioUrl) return
-
-    await handleLoadBuffer(audioUrl)
-  }, [handleLoadBuffer])
+      try {
+        await handleLoadBuffer(audioUrl)
+      }
+      catch (err) {
+        console.error(err)
+      }
+    }, [handleLoadBuffer])
 
   const handleControl = useCallback(
-    async (e?: KeyboardEvent | React.MouseEvent) => {
+    async function handleControl(e?: KeyboardEvent | React.MouseEvent) {
       if (e instanceof KeyboardEvent && e.key !== ' ') return
       if (e instanceof MouseEvent && e.type !== 'click') return
 
-      const audioCtx = audioCtxRef.current
-      if (!audioCtx) throw new Error('Control: No audio context')
+      if (!audioCtxRef.current) throw new Error('Control: No audio context')
 
-      if (audioCtx.state === 'closed') return
+      try {
+        if (audioCtxRef.current.state === 'closed') return
 
-      if (isPlaying && audioCtx.state === 'running') {
-        await audioCtx.suspend()
-        setIsPlaying(false)
+        if (isPlaying && audioCtxRef.current.state === 'running') {
+          await audioCtxRef.current.suspend()
+          setIsPlaying(false)
+
+          return
+        }
+
+        if (!isPlaying && audioCtxRef.current.state === 'suspended') {
+          await audioCtxRef.current.resume()
+          setIsPlaying(true)
+
+          return
+        }
+
+        return
+      }
+      catch (err) {
+        console.error(err)
+      }
+    }, [isPlaying])
+
+  const handleKeyup = useCallback(
+    async function handleKeyup(e: KeyboardEvent) {
+      const key = e.key
+      if (
+        key.length !== 1
+        && !(['Control'].includes(key))
+      ) return
+      if (key === ' ') {
+        await handleControl()
 
         return
       }
 
-      if (!isPlaying && audioCtx.state === 'suspended') {
-        await audioCtx.resume()
-        setIsPlaying(true)
+      await handleProcessBuffer(key)
+    }, [handleControl, handleProcessBuffer])
+
+  const handleClick = useCallback(
+    async function handleClick(
+      value: string,
+    ) {
+      const key = getKeyboardEventKey(value)
+      if (key === ' ') {
+        await handleControl()
 
         return
       }
 
-      return
-    },
-    [isPlaying])
+      await handleProcessBuffer(key)
+    }, [handleControl, handleProcessBuffer])
 
-  const handleKeyup = useCallback(async (e: KeyboardEvent) => {
-    const key = e.key
-    if (
-      key.length !== 1
-      && !(['Control'].includes(key))
-    ) return
-    if (key === ' ') {
-      await handleControl()
-
-      return
-    }
-
-    await handleProcessBuffer(key)
-  }, [handleControl, handleProcessBuffer])
-
-  const handleClick = useCallback(async (
-    value: string,
-  ) => {
-    const key = getKeyboardEventKey(value)
-    if (key === ' ') {
-      await handleControl()
-
-      return
-    }
-
-    await handleProcessBuffer(key)
-  }, [handleControl, handleProcessBuffer])
-
-  const handleReset = () => {
-    void audioCtxRef.current?.close()
+  const handleReset = async () => {
+    await audioCtxRef.current?.close()
     audioCtxRef.current = null
     setIsPlaying(false)
 
