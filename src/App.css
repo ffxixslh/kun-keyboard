@@ -8,6 +8,9 @@
   color: rgb(55, 20, 10);
 }
 
+.simple-keyboard.hg-layout-default .hg-button.grlxs span {
+  overflow: hidden;
+}
 .simple-keyboard.hg-layout-default .hg-button.grlxs span::after {
   content: url("/src/assets/images/chick40h.png");
 }
