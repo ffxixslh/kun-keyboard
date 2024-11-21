@@ -4,8 +4,7 @@ Kun keyboard for ikuns.
 
 ## Structure
 
-![flowchart](./src/assets/images/flow.png)
-
+```mermaid
 flowchart TD
     song --> cache{cache?}
     cache -->|No| request
@@ -15,10 +14,10 @@ flowchart TD
     wav_check -->|No| mp3
     wav_check -->|Yes| wav
     wav --> first_chunk{1st chunk?}
-    first_chunk -->|Yes| add_header
-    first_chunk -->|No| first_chunk_direct[1st chunk]
+    first_chunk -->|No| add_header
+    first_chunk -->|Yes| first_chunk_direct[1st chunk]
     add_header --> nth_chunk[nth chunk]
-    nth_chunk --> save((save))
+    nth_chunk --> save((save nth chunk))
     mp3 --> process
     save --> process
     first_chunk_direct --> process
@@ -27,3 +26,4 @@ flowchart TD
     chunk_check -->|No| finish
     chunk_check -->|Yes| get_nth((get nth chunk))
     get_nth --> process
+```
