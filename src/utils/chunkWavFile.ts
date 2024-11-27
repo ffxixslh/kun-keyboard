@@ -1,17 +1,5 @@
 // 常量定义
 export const HEADER_SIZE = 44
-export const DEFAULT_CHUNK_DURATION = 1 // 默认1秒
-
-// 解析WAV头部信息
-export function parseWavHeader(header: DataView) {
-  return {
-    channelCount: header.getUint16(22, true),
-    sampleRate: header.getUint32(24, true),
-    byteRate: header.getUint32(28, true),
-    blockAlign: header.getUint16(32, true),
-    bitsPerSample: header.getUint16(34, true),
-  }
-}
 
 // 验证WAV头部
 export function isValidWavHeader(header: DataView) {
@@ -31,38 +19,42 @@ export function isValidWavHeader(header: DataView) {
   return riff === 'RIFF' && wave === 'WAVE'
 }
 
-// 复制WAV头部
-function copyWavHeader(sourceHeader: DataView, targetHeader: DataView) {
-  const headerBytes = new Uint8Array(sourceHeader.buffer, 0, HEADER_SIZE)
-  const bytes = new Uint8Array(targetHeader.buffer).set(headerBytes)
+export function createWavHeader(
+  originalHeader: DataView,
+  chunkSize: number,
+): ArrayBuffer {
+  const header = new ArrayBuffer(44) // WAV头固定44字节
+  const view = new DataView(header)
 
-  return bytes
+  // RIFF chunk
+  view.setUint32(0, 0x52494646, false) // "RIFF"
+  view.setUint32(4, 36 + chunkSize, true) // 文件大小
+  view.setUint32(8, 0x57415645, false) // "WAVE"
+
+  // fmt chunk (复制原始头的fmt部分)
+  for (let i = 12; i < 36; i++) {
+    view.setUint8(i, originalHeader.getUint8(i))
+  }
+
+  // data chunk
+  view.setUint32(36, 0x64617461, false) // "data"
+  view.setUint32(40, chunkSize, true) // data大小
+
+  return header
 }
 
-// 更新WAV头部大小信息
-function updateWavHeader(header: DataView, chunkSize: number) {
-  header.setUint32(4, chunkSize + 36, true) // 文件大小
-  header.setUint32(40, chunkSize, true) // 数据块大小
-}
-
-// 创建单个切片
 export function createWavChunk(
   audioData: ArrayBuffer,
-  offset: number,
-  chunkSize: number,
   originalHeader: DataView,
-) {
-  const chunk = new ArrayBuffer(HEADER_SIZE + chunkSize)
-  const chunkView = new DataView(chunk)
-  const chunkBytes = new Uint8Array(chunk)
+): ArrayBuffer {
+  const chunkSize = audioData.byteLength
+  const header = createWavHeader(originalHeader, chunkSize)
+  const chunk = new ArrayBuffer(44 + chunkSize)
 
-  // 复制并更新头部
-  copyWavHeader(originalHeader, chunkView)
-  updateWavHeader(chunkView, chunkSize)
-
+  // 复制头部
+  new Uint8Array(chunk).set(new Uint8Array(header))
   // 复制音频数据
-  const audioChunk = new Uint8Array(audioData.slice(offset, offset + chunkSize))
-  chunkBytes.set(audioChunk, HEADER_SIZE)
+  new Uint8Array(chunk).set(new Uint8Array(audioData), 44)
 
   return chunk
 }
